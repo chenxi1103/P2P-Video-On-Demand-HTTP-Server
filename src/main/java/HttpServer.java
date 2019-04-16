@@ -1,3 +1,5 @@
+import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
+
 import java.net.*;
 import java.io.*;
 import java.time.ZoneOffset;
@@ -91,6 +93,17 @@ public class HttpServer implements Runnable {
             }
         } catch (IOException e1) {
             System.out.println("General error: " + e1.getMessage());
+        } finally {
+            try{
+                inputStream.close();
+                bufferedReader.close();
+                outputStream.close();
+                printWriter.close();
+                bufferedOutputStream.close();
+            } catch (IOException e) {
+                System.out.println("Finally error: " + e.getMessage());
+            }
+
         }
     }
 
