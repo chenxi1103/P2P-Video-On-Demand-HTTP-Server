@@ -1,60 +1,37 @@
 import java.net.*;
 import java.io.*;
-import java.text.SimpleDateFormat;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Calendar;
-import java.util.Locale;
-import java.util.TimeZone;
 
 public class HttpServer implements Runnable {
-    static final int PORT = 10008;
+    static final int PORT = 10006;
+    private Socket socket;
+    private String serverTime;
+    private String parentPath = "src/main/resources/";
+    private String requestFile;
+    private InputStream inputStream;
+    private BufferedReader bufferedReader;
+    private OutputStream outputStream;
+    private PrintWriter printWriter;
+    private BufferedOutputStream bufferedOutputStream;
 
-
-
-
+    HttpServer(Socket socket) {
+        this.socket = socket;
+    }
     public static void main(String[] args) {
         try {
-            final ServerSocket serverSocket = new ServerSocket(PORT);
-
-            // Tell the operating system that the socket actively want the
-            // client to connect this port. If client connect this port, we
-            // get this socket.
+            ServerSocket serverSocket = new ServerSocket(PORT);
             while (true) {
-                final Socket socket = serverSocket.accept();
-                System.out.println("Connect to " + socket.getRemoteSocketAddress());
-
-                InputStream inputStream = socket.getInputStream();
-                BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
-                String line = null;
-                while ((line = bufferedReader.readLine()) != null) {
-                    System.out.println(line);
-                }
-
-                OutputStream outputStream = socket.getOutputStream();
-
-                // OutputStream accepts bytes. If wants to send String instead of
-                // byte, PrintWriter is needed.
-                PrintWriter printWriter = new PrintWriter(outputStream);
-                printWriter.println("HTTP/1.0 200 OK");
-
-                // Generate Server Time in RFC 1123-format
-                String serverTime = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC));
-                printWriter.println("Date: " + serverTime);
-                String contentType = "text/html";
-                printWriter.println("Content-Type: " + contentType);
-                String contentLength = "12";
-                printWriter.println("Content-Length: " + contentLength);
-                // Empty line -> indicate the end of the header field
-                printWriter.println("");
-                printWriter.println("Hello World!");
-                printWriter.flush();
-
+                HttpServer server = new HttpServer(serverSocket.accept());
+                Thread thread = new Thread(server);
+                thread.start();
             }
+
         } catch (IOException e) {
             System.out.println(e.getMessage());
         }
+
     }
 
     /**
@@ -70,7 +47,84 @@ public class HttpServer implements Runnable {
      */
     @Override
     public void run() {
+        try {
+            // Tell the operating system that the socket actively want the
+            // client to connect this port. If client connect this port, we
+            // get this socket.
+            inputStream = socket.getInputStream();
+            bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
+            outputStream = socket.getOutputStream();
+            // OutputStream accepts bytes. If wants to send String instead of
+            // byte, PrintWriter is needed.
+            printWriter = new PrintWriter(outputStream);
+            bufferedOutputStream = new BufferedOutputStream(outputStream);
+
+            String firstLine = bufferedReader.readLine();
+            String method = firstLine.split(" ")[0];
+            requestFile = firstLine.split(" ")[1];
+            // If this is a GET request
+            if (method.toUpperCase().equals("GET")) {
+                if (requestFile.equals("/")) {
+                    requestFile = "index.html";
+                }
+                File file = new File(parentPath, requestFile);
+                byte[] byteFile = getFileByte(file);
+
+                printWriter.println("HTTP/1.0 200 OK");
+                // Generate Server Time in RFC 1123-format
+                serverTime = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC));
+                printWriter.println("Date: " + serverTime);
+                String contentType = "text/html";
+                printWriter.println("Content-Type: " + contentType);
+                String contentLength = Integer.toString((int)file.length());
+                printWriter.println("Content-Length: " + contentLength);
+                // Empty line -> indicate the end of the header field
+                printWriter.println("");
+                printWriter.flush();
+
+                bufferedOutputStream.write(byteFile);
+                bufferedOutputStream.flush();
+            } else {
 
 
+
+            }
+        } catch (IOException e1) {
+            System.out.println("General error: " + e1.getMessage());
+        }
+    }
+
+
+    private byte[] getFileByte(File file) {
+        byte[] byteFile = new byte[(int) file.length()];
+        try{
+            FileInputStream fileInputStream = new FileInputStream(file);
+            fileInputStream.read(byteFile);
+            fileInputStream.close();
+        } catch (FileNotFoundException e) {
+            requestFile = "404.html";
+            File notFoundFile = new File(parentPath, requestFile);
+            byte[] bytefile = getFileByte(notFoundFile);
+            printWriter.println("HTTP/1.0 404 Not Found");
+            // Generate Server Time in RFC 1123-format
+            serverTime = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC));
+            printWriter.println("Date: " + serverTime);
+            String contentType = "text/html";
+            printWriter.println("Content-Type: " + contentType);
+            String contentLength = Integer.toString((int)notFoundFile.length());
+            printWriter.println("Content-Length: " + contentLength);
+            // Empty line -> indicate the end of the header field
+            printWriter.println("");
+            printWriter.flush();
+            try {
+                bufferedOutputStream.write(bytefile);
+                bufferedOutputStream.flush();
+            } catch (IOException e2) {
+                System.out.println("404 error: " + e2.getMessage());
+            }
+        } catch (IOException e1) {
+            System.out.println("getFileByte error: " + e1.getMessage());
+        }
+        return byteFile;
     }
 }
