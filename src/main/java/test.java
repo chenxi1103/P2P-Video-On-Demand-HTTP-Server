@@ -1,22 +1,20 @@
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.ServerSocket;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public class test {
+    private static final Executor threadPool = Executors.newFixedThreadPool(5);
+
     public static void main(String[] args) {
-        File file = new File("src/main/resources/index.html");
-        try{
-            FileInputStream fileInputStream = new FileInputStream(file);
-            byte[] byteFile = new byte[(int)file.length()];
-            fileInputStream.read(byteFile);
-            fileInputStream.close();
-
-        } catch (FileNotFoundException e) {
+        try {
+            ServerSocket serverSocket = new ServerSocket(10009);
+            while (true) {
+                HttpServer server = new HttpServer(serverSocket.accept());
+                threadPool.execute(server);
+            }
+        } catch (IOException e) {
             System.out.println(e.getMessage());
-        } catch (IOException e1) {
-
         }
-
     }
 }
